@@ -176,4 +176,4 @@ python inference.py
 
 ## 👩‍💻 Author
 
-Built by **Sanchi Agarwal** for the Meta × HuggingFace OpenEnv Hackathon 2026.
+Built by **MakerYuichii** for the Meta × HuggingFace OpenEnv Hackathon 2026.
