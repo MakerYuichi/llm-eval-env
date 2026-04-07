@@ -270,11 +270,27 @@ TASK_REGISTRY = {
 }
 
 
-def get_task(task_name: str, seed: int = None) -> Dict[str, Any]:
-    """Return a random scenario for the given task."""
-    scenarios = TASK_REGISTRY.get(task_name)
-    if not scenarios:
+def get_task(task_name: str, seed: int = None, dynamic: bool = True) -> Dict[str, Any]:
+    """
+    Return a scenario for the given task.
+    Tries dynamic LLM generation first; falls back to hardcoded scenarios.
+    """
+    if not TASK_REGISTRY.get(task_name):
         raise ValueError(f"Unknown task: {task_name}. Choose from {list(TASK_REGISTRY.keys())}")
+
+    if dynamic:
+        try:
+            from server.scenario_generator import GENERATORS
+            generator = GENERATORS.get(task_name)
+            if generator:
+                scenario = generator()
+                if scenario:
+                    print(f"[tasks] dynamic scenario generated for {task_name}", flush=True)
+                    return scenario
+        except Exception as e:
+            print(f"[tasks] dynamic generation error: {e}", flush=True)
+
+    # Fallback to hardcoded
     if seed is not None:
         random.seed(seed)
-    return random.choice(scenarios)
+    return random.choice(TASK_REGISTRY[task_name])
