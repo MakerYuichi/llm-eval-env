@@ -1,0 +1,89 @@
+name: llm-eval-env
+version: 1.0.0
+description: >
+  LLM Evaluation Pipeline Environment — An agent acts as an ML infrastructure
+  engineer evaluating model outputs across three real-world tasks:
+  regression detection, adversarial weakness probing, and ship/rollback decisions.
+  Mirrors the actual model release pipeline used at production AI labs.
+
+author: Sanchi Agarwal
+tags:
+  - openenv
+  - llm-evaluation
+  - ml-infrastructure
+  - regression-detection
+  - model-safety
+
+tasks:
+  - name: regression_detection
+    difficulty: easy
+    description: >
+      Identify which of two model outputs contains a planted factual error.
+      Graded on correctness of model identification and quality of evidence.
+
+  - name: weakness_probing
+    difficulty: medium
+    description: >
+      Design 3 adversarial probe prompts that reliably expose a stated model
+      weakness (hallucination, over-refusal, etc.).
+      Graded on probe count, keyword targeting, and domain diversity.
+
+  - name: ship_decision
+    difficulty: hard
+    description: >
+      Review a full model eval report with metrics (safety score, regression
+      count, hallucination rate, latency) and decide ship or rollback.
+      Graded on correctness of decision and quality of metric justification.
+
+action_space:
+  type: structured
+  fields:
+    - name: analysis
+      type: string
+      description: Step-by-step reasoning about the evaluation scenario
+    - name: verdict
+      type: string
+      description: The agent's decision (model_a/model_b, probe list, ship/rollback)
+    - name: evidence
+      type: string
+      description: Specific metrics or facts cited to support the verdict
+    - name: confidence
+      type: float
+      range: [0.0, 1.0]
+      description: Agent's self-reported confidence
+
+observation_space:
+  type: structured
+  fields:
+    - name: task_type
+      type: string
+    - name: scenario
+      type: dict
+      description: Full evaluation scenario data
+    - name: criteria
+      type: list[string]
+      description: Rubric criteria
+    - name: feedback
+      type: string
+      description: Instructor feedback on previous action
+    - name: step_reward
+      type: float
+      description: Reward earned at this step
+    - name: task_complete
+      type: bool
+
+reward:
+  range: [0.0, 1.0]
+  type: dense
+  description: >
+    Partial rewards fire at each step. Terminal rewards score verdict
+    correctness, evidence quality, and reasoning soundness.
+    Wrong decisions with high confidence are penalized.
+
+baseline:
+  script: inference.py
+  model: Qwen/Qwen2.5-72B-Instruct
+  expected_scores:
+    regression_detection: 0.7
+    weakness_probing: 0.5
+    ship_decision: 0.6
