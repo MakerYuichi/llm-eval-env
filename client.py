@@ -1,7 +1,7 @@
-"""
-LLM Eval Environment — Python Client
-Connects via WebSocket to the running server.
-"""
+"""LLM Eval Environment — Python Client"""
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from openenv.core.env_client import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
@@ -10,6 +10,10 @@ from models import EvalAction, EvalObservation, EvalState
 
 class LLMEvalEnv(EnvClient[EvalAction, EvalObservation, EvalState]):
     """Client for the LLM Evaluation Pipeline Environment."""
+
+    def _reset_payload(self, **kwargs) -> dict:
+        # Pass task= kwarg through to the server's reset()
+        return kwargs
 
     def _step_payload(self, action: EvalAction) -> dict:
         return {

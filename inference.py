@@ -1,12 +1,11 @@
 """
 LLM Evaluation Pipeline — Baseline Inference Script
 Follows the mandatory [START] / [STEP] / [END] log format exactly.
-
-Usage:
-    HF_TOKEN=<token> API_BASE_URL=<url> MODEL_NAME=<model> python inference.py
 """
 import os
+import sys
 import json
+import traceback
 import textwrap
 from typing import List, Optional
 
@@ -14,7 +13,6 @@ from openai import OpenAI
 from client import LLMEvalEnv
 from models import EvalAction
 
-# ── Configuration ────────────────────────────────────────────────
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
@@ -28,36 +26,24 @@ SUCCESS_THRESHOLD = 0.5
 
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
-# ── Logging ───────────────────────────────────────────────────────
 
-def log_start(task: str, env: str, model: str) -> None:
+def log_start(task, env, model):
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 
-def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+def log_step(step, action, reward, done, error):
     error_val = error if error else "null"
-    done_val = str(done).lower()
-    print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} "
-        f"done={done_val} error={error_val}",
-        flush=True,
-    )
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_val}", flush=True)
 
 
-def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+def log_end(success, steps, score, rewards):
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(
-        f"[END] success={str(success).lower()} steps={steps} "
-        f"score={score:.2f} rewards={rewards_str}",
-        flush=True,
-    )
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
-
-# ── Prompt builder ────────────────────────────────────────────────
 
 SYSTEM_PROMPT = textwrap.dedent("""
     You are an expert ML infrastructure engineer specializing in LLM evaluation.
-    You will be given an evaluation scenario and must respond in valid JSON with:
+    Respond ONLY with a valid JSON object (no markdown, no extra text):
     {
       "analysis": "<step-by-step reasoning>",
       "verdict": "<your decision>",
@@ -67,48 +53,51 @@ SYSTEM_PROMPT = textwrap.dedent("""
 
     Task guidelines:
     - regression_detection: verdict = "model_a" or "model_b"
-    - weakness_probing: verdict = a string containing 3 probe questions ending with '?'
+    - weakness_probing: verdict = string with 3 probe questions ending with '?'
     - ship_decision: verdict = "ship" or "rollback"
-
-    Always cite specific evidence. Be concise but precise.
-    Respond ONLY with the JSON object — no markdown, no extra text.
 """).strip()
 
 
-def build_user_prompt(obs) -> str:
+def build_user_prompt(obs):
     scenario_str = json.dumps(obs.scenario, indent=2)
     criteria_str = "\n".join(f"  - {c}" for c in obs.criteria)
     return textwrap.dedent(f"""
         TASK: {obs.task_type}
-        FEEDBACK FROM LAST STEP: {obs.feedback}
+        FEEDBACK: {obs.feedback}
         CRITERIA:
         {criteria_str}
         SCENARIO:
         {scenario_str}
 
-        Respond with a JSON object: analysis, verdict, evidence, confidence.
+        Respond with JSON: analysis, verdict, evidence, confidence.
     """).strip()
 
 
-# ── Run one task episode ──────────────────────────────────────────
-
-def run_task(env: LLMEvalEnv, task_name: str) -> float:
+def run_task(env, task_name):
     log_start(task=task_name, env="llm-eval-env", model=MODEL_NAME)
-    rewards: List[float] = []
-    error_msg: Optional[str] = None
+    rewards = []
     step = 0
     final_score = 0.0
+    success = False
 
     try:
         reset_result = env.reset(task=task_name)
-        obs = reset_result.observation if hasattr(reset_result, "observation") else reset_result
+        obs = getattr(reset_result, 'observation', reset_result)
         history = [{"role": "system", "content": SYSTEM_PROMPT}]
         done = False
+        raw = "{}"
 
         while not done and step < MAX_STEPS:
             step += 1
-            raw = "{}"
-            user_msg = build_user_prompt(obs)
+            error_msg = None
+
+            try:
+                user_msg = build_user_prompt(obs)
+            except Exception as e:
+                print(f"# [BUILD_PROMPT_ERROR] {e}", flush=True)
+                traceback.print_exc()
+                break
+
             history.append({"role": "user", "content": user_msg})
 
             try:
@@ -119,59 +108,51 @@ def run_task(env: LLMEvalEnv, task_name: str) -> float:
                     temperature=TEMPERATURE,
                 )
                 raw = response.choices[0].message.content.strip()
-                # Strip markdown fences if present
                 raw = raw.replace("```json", "").replace("```", "").strip()
                 parsed = json.loads(raw)
-
                 action = EvalAction(
+                    task=task_name,
                     analysis=parsed.get("analysis", ""),
                     verdict=parsed.get("verdict", ""),
                     evidence=parsed.get("evidence", ""),
                     confidence=float(parsed.get("confidence", 0.5)),
                 )
                 action_str = f"verdict={action.verdict[:40]}"
-                error_msg = None
-
             except Exception as e:
                 error_msg = str(e)[:80]
+                print(f"# [LLM_ERROR] {e}", flush=True)
                 action = EvalAction(
-                    analysis="parse error",
-                    verdict="unknown",
-                    evidence="none",
-                    confidence=0.0,
+                    task=task_name, analysis="error",
+                    verdict="unknown", evidence="none", confidence=0.0
                 )
-                action_str = "parse_error"
+                action_str = "llm_error"
 
-            result = env.step(action)
-            obs = result.observation
-            reward = result.reward
-            done = result.done
-
-            # Step reward (delta from cumulative)
-            step_reward = obs.step_reward
-            rewards.append(step_reward)
-
-            log_step(step=step, action=action_str, reward=step_reward, done=done, error=error_msg)
-            history.append({"role": "assistant", "content": raw if error_msg is None else "{}"})
+            try:
+                step_result = env.step(action)
+                obs = getattr(step_result, 'observation', step_result)
+                reward = getattr(obs, 'step_reward', 0.0)
+                done = getattr(step_result, 'done', False) or getattr(obs, 'done', False)
+                rewards.append(reward)
+                log_step(step=step, action=action_str, reward=reward, done=done, error=error_msg)
+                history.append({"role": "assistant", "content": raw})
+            except Exception as e:
+                print(f"# [STEP_ERROR] {e}", flush=True)
+                traceback.print_exc()
+                break
 
         final_score = sum(rewards)
         success = final_score >= SUCCESS_THRESHOLD
 
     except Exception as e:
-        import traceback
-        error_msg = str(e)
-        print(f"# [ERROR] {task_name}: {error_msg}", flush=True)
+        print(f"# [TASK_ERROR] {task_name}: {e}", flush=True)
         traceback.print_exc()
-        success = False
-        final_score = 0.0
 
     log_end(success=success, steps=step, score=final_score, rewards=rewards)
     return final_score
 
 
-# ── Main ──────────────────────────────────────────────────────────
-
 def main():
+    print(f"# Connecting to: {ENV_BASE_URL}", flush=True)
     with LLMEvalEnv(base_url=ENV_BASE_URL).sync() as env:
         total_score = 0.0
         for task in TASKS:
