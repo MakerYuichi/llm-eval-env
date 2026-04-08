@@ -39,12 +39,12 @@ def log_start(task: str, env: str, model: str) -> None:
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
-    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_val}", flush=True)
+    print(f"[STEP] step={step} action={action} reward={reward:.3f} done={str(done).lower()} error={error_val}", flush=True)
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
+    rewards_str = ",".join(f"{r:.3f}" for r in rewards)
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 
 # ── Prompts ───────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ def run_task(env, task_name: str, client) -> float:
             try:
                 step_result = env.step(action)
                 obs         = getattr(step_result, "observation", step_result)
-                reward      = float(getattr(obs, "step_reward", 0.0))
+                reward      = max(0.001, min(float(getattr(obs, "step_reward", 0.001)), 0.99))
                 done        = bool(
                     getattr(step_result, "done", False) or getattr(obs, "done", False)
                 )
@@ -187,7 +187,7 @@ def run_task(env, task_name: str, client) -> float:
                 log_step(step=step, action=action_str, reward=0.0, done=True, error=str(e)[:80])
                 break
 
-        final_score = min(max(sum(rewards), 0.001), 0.999)
+        final_score = max(0.001, min(sum(rewards), 0.99))
         success     = final_score >= SUCCESS_THRESHOLD
 
     except Exception as e:
@@ -216,24 +216,24 @@ def main() -> None:
 
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
-    try:
-        with LLMEvalEnv(base_url=ENV_BASE_URL).sync() as env:
-            total_score = 0.0
-            for task in TASKS:
-                score        = run_task(env, task, client)
-                total_score += score
-                print(f"# Task [{task}] score: {score:.2f}", flush=True)
-                time.sleep(3)
-
-            avg = total_score / len(TASKS)
-            print(f"# Overall average score: {avg:.2f}", flush=True)
-
-    except Exception as e:
-        print(f"# [CONNECTION_ERROR] Could not connect to {ENV_BASE_URL}: {e}", flush=True)
-        traceback.print_exc()
-        for task in TASKS:
+    total_score = 0.0
+    for task in TASKS:
+        wake_up_space(ENV_BASE_URL)
+        try:
+            with LLMEvalEnv(base_url=ENV_BASE_URL).sync() as env:
+                score = run_task(env, task, client)
+        except Exception as e:
+            print(f"# [CONNECTION_ERROR] {task}: {e}", flush=True)
+            traceback.print_exc()
             log_start(task=task, env="llm-eval-env", model=MODEL_NAME)
-            log_end(success=False, steps=0, score=0.0, rewards=[])
+            log_end(success=False, steps=0, score=0.001, rewards=[])
+            score = 0.001
+        total_score += score
+        print(f"# Task [{task}] score: {score:.3f}", flush=True)
+        time.sleep(3)
+
+    avg = total_score / len(TASKS)
+    print(f"# Overall average score: {avg:.3f}", flush=True)
 
     sys.exit(0)
 
