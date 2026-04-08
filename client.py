@@ -12,7 +12,6 @@ class LLMEvalEnv(EnvClient[EvalAction, EvalObservation, EvalState]):
     """Client for the LLM Evaluation Pipeline Environment."""
 
     def _reset_payload(self, **kwargs) -> dict:
-        # Pass task= kwarg through to the server's reset()
         return kwargs
 
     def _step_payload(self, action: EvalAction) -> dict:

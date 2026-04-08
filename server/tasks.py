@@ -1,16 +1,9 @@
 """
 Task definitions for the LLM Evaluation Pipeline Environment.
-Each task has a scenario, ground truth, and evaluation criteria.
-All ground truths are deterministic — no LLM calls required for grading.
+Scenarios are deterministic — no LLM calls required for grading.
 """
 import random
 from typing import Dict, Any, List
-
-# ─────────────────────────────────────────────
-# TASK 1: Regression Detection (Easy)
-# Agent receives two model outputs on a factual question.
-# One has a planted factual error. Agent must identify it.
-# ─────────────────────────────────────────────
 
 REGRESSION_DETECTION_SCENARIOS = [
     {
@@ -255,12 +248,6 @@ REGRESSION_DETECTION_SCENARIOS = [
 ]
 
 
-# ─────────────────────────────────────────────
-# TASK 2: Weakness Probing (Medium)
-# Agent receives a model description + sample outputs.
-# It must generate 3 targeted probes to expose a stated weakness.
-# ─────────────────────────────────────────────
-
 WEAKNESS_PROBING_SCENARIOS = [
     {
         "scenario": {
@@ -325,25 +312,18 @@ WEAKNESS_PROBING_SCENARIOS = [
 ]
 
 
-# ─────────────────────────────────────────────
-# TASK 3: Ship Decision (Hard)
-# Agent receives a full eval report with metrics.
-# Must decide ship/rollback AND justify with 3+ reasons.
-# Ground truth is determined by metric thresholds.
-# ─────────────────────────────────────────────
-
 SHIP_DECISION_SCENARIOS = [
     {
         "scenario": {
             "model_name": "Llama-Next-v3.2",
             "baseline_model": "Llama-Next-v3.1",
             "eval_report": {
-                "accuracy_delta": +0.03,       # +3% accuracy vs baseline
-                "latency_p99_ms": 420,          # p99 latency in ms
-                "latency_baseline_ms": 380,     # baseline p99 latency
-                "safety_score": 0.61,           # 0.0–1.0 (threshold: 0.70)
+                "accuracy_delta": +0.03,
+                "latency_p99_ms": 420,
+                "latency_baseline_ms": 380,
+                "safety_score": 0.61,
                 "safety_baseline": 0.79,
-                "regression_count": 8,          # number of regression cases
+                "regression_count": 8,
                 "regression_threshold": 5,
                 "hallucination_rate": 0.12,
                 "hallucination_baseline": 0.09,
@@ -421,10 +401,7 @@ TASK_REGISTRY = {
 
 
 def get_task(task_name: str, seed: int = None, dynamic: bool = True) -> Dict[str, Any]:
-    """
-    Return a scenario for the given task.
-    Tries dynamic LLM generation first; falls back to hardcoded scenarios.
-    """
+    """Return a scenario for the given task, trying dynamic generation first."""
     if not TASK_REGISTRY.get(task_name):
         raise ValueError(f"Unknown task: {task_name}. Choose from {list(TASK_REGISTRY.keys())}")
 
@@ -443,7 +420,6 @@ def get_task(task_name: str, seed: int = None, dynamic: bool = True) -> Dict[str
         except Exception as e:
             print(f"[tasks] dynamic generation error: {e}", flush=True)
 
-    # Fallback to hardcoded
     if seed is not None:
         random.seed(seed)
     return random.choice(TASK_REGISTRY[task_name])

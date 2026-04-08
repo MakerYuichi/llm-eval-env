@@ -1,5 +1,5 @@
 """
-Dynamic scenario generator — uses an LLM to produce fresh scenarios at reset time.
+Dynamic scenario generator — produces fresh scenarios at reset time via LLM.
 Falls back to hardcoded scenarios if generation fails or HF_TOKEN is missing.
 """
 import os
@@ -18,7 +18,7 @@ DOMAINS = [
 ]
 
 MODEL = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-TEMPERATURE = 0.7  # reliable JSON structure while still varied
+TEMPERATURE = 0.7
 MAX_RETRIES = 2
 
 
@@ -54,7 +54,7 @@ def _call_llm(prompt: str, max_tokens: int = 700) -> Optional[str]:
 
 
 def _with_retry(fn, retries: int = MAX_RETRIES) -> Optional[Dict[str, Any]]:
-    """Call fn up to `retries` times, returning first success or None."""
+    """Try fn up to `retries` times, return first success or None."""
     for attempt in range(retries):
         try:
             result = fn()
@@ -128,8 +128,6 @@ def generate_regression_scenario() -> Optional[Dict[str, Any]]:
     return _with_retry(_try_regression)
 
 
-# ── Weakness Probing ──────────────────────────────────────────────
-
 WEAKNESSES = [
     ("hallucination_recent_events", "model confabulates facts after its training cutoff",
      ["2024", "2025", "latest", "recent", "current", "new", "this year"]),
@@ -143,7 +141,6 @@ WEAKNESSES = [
      ["source", "study", "paper", "according", "published", "research", "cited"]),
 ]
 
-# Two distinct domain lists to enforce diversity in generated scenarios
 DOMAIN_PAIRS = [
     ("technology", "sports"),
     ("medicine", "politics"),
@@ -203,8 +200,6 @@ def generate_weakness_scenario() -> Optional[Dict[str, Any]]:
     return _with_retry(_try_weakness)
 
 
-# ── Ship Decision ─────────────────────────────────────────────────
-
 _SHIP_PROMPT = """Generate a ship/rollback decision scenario for an LLM evaluation task.
 Vary between ship and rollback outcomes across calls.
 
@@ -253,7 +248,7 @@ def _try_ship() -> Optional[Dict[str, Any]]:
     assert "scenario" in data and "ground_truth" in data
     assert data["ground_truth"]["correct_decision"] in ("ship", "rollback")
 
-    # Enforce correct decision based on thresholds (with float tolerance)
+    # Enforce correct decision based on thresholds (float tolerance avoids noise)
     report = data["scenario"]["eval_report"]
     TOLERANCE = 0.01
     should_rollback = (
@@ -268,8 +263,6 @@ def _try_ship() -> Optional[Dict[str, Any]]:
 def generate_ship_scenario() -> Optional[Dict[str, Any]]:
     return _with_retry(_try_ship)
 
-
-# ── Dispatcher ────────────────────────────────────────────────────
 
 GENERATORS = {
     "regression_detection": generate_regression_scenario,

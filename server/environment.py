@@ -46,13 +46,11 @@ class LLMEvalEnvironment(Environment):
         )
 
     def step(self, action: EvalAction) -> EvalObservation:
-        # Use task from action as fallback if reset() didn't set it
         task = self._task_name
         if not task or task not in VALID_TASKS:
             task = getattr(action, 'task', None) or "regression_detection"
             self._task_name = task
 
-        # Load task data if missing (e.g. after server restart)
         if self._current_task_data is None:
             self._current_task_data = get_task(task)
 
