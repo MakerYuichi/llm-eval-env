@@ -188,12 +188,15 @@ python inference.py
 
 ## 📊 Baseline Performance
 
-| Task | Score |
-|------|-------|
-| Regression Detection | 1.00 |
-| Weakness Probing | 1.00 |
-| Ship Decision | 1.00 |
-| **Overall Average** | **1.00** |
+| Task | Score | Difficulty | Hardcoded Scenarios |
+|------|-------|------------|---------------------|
+| Regression Detection | 1.00 | 🟢 Easy | 8 |
+| Weakness Probing | 1.00 | 🟡 Medium | 2 |
+| Ship Decision | 1.00 | 🔴 Hard | 2 |
+| **Overall Average** | **1.00** | | **12 total** |
+
+All scores achieved by `Qwen/Qwen2.5-72B-Instruct` via HuggingFace Inference Router.
+Dynamic generation adds infinite additional variations at runtime on top of the hardcoded pool.
 
 ---
 
