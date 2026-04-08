@@ -108,6 +108,23 @@ def wake_up_space(base_url: str, retries: int = 8, interval: int = 15) -> bool:
 
 # ── Single task runner ────────────────────────────────────────────
 
+def run_task_with_retry(env, task_name: str, client, max_retries: int = 2) -> float:
+    """Run a task with automatic retry if the Space crashes (e.g. WS 1012)."""
+    for attempt in range(max_retries):
+        try:
+            return run_task(env, task_name, client)
+        except Exception as e:
+            error_str = str(e)
+            if "1012" in error_str and attempt < max_retries - 1:
+                print(f"# [RETRY] {task_name} crashed (attempt {attempt+1}), retrying in 5s...", flush=True)
+                time.sleep(5)
+                from client import LLMEvalEnv
+                env = LLMEvalEnv(base_url=ENV_BASE_URL).sync()
+                continue
+            raise
+    return 0.001
+
+
 def run_task(env, task_name: str, client) -> float:
     log_start(task=task_name, env="llm-eval-env", model=MODEL_NAME)
     rewards:    List[float] = []
@@ -221,7 +238,7 @@ def main() -> None:
         wake_up_space(ENV_BASE_URL)
         try:
             with LLMEvalEnv(base_url=ENV_BASE_URL).sync() as env:
-                score = run_task(env, task, client)
+                score = run_task_with_retry(env, task, client)
         except Exception as e:
             print(f"# [CONNECTION_ERROR] {task}: {e}", flush=True)
             traceback.print_exc()
