@@ -24,7 +24,7 @@ ENV_BASE_URL = os.getenv(
     "https://makeryuichi-llm-eval-env.hf.space"
 )
 
-TASKS             = ["regression_detection", "weakness_probing", "ship_decision"]
+TASKS = ["regression_detection", "weakness_probing", "ship_decision", "bias_detection"]
 MAX_STEPS         = 3
 TEMPERATURE       = 0.3
 MAX_TOKENS        = 512

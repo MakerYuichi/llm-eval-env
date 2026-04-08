@@ -7,7 +7,7 @@ from server.tasks import get_task
 from server.graders import grade_action
 
 MAX_STEPS = 3
-VALID_TASKS = ["regression_detection", "weakness_probing", "ship_decision"]
+VALID_TASKS = ["regression_detection", "weakness_probing", "ship_decision", "bias_detection"]
 
 
 class LLMEvalEnvironment(Environment):

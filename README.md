@@ -54,11 +54,42 @@ llm-eval-env/
 │   ├── graders.py       # Deterministic graders (no LLM needed)
 │   └── scenario_generator.py  # Dynamic LLM scenario generation
 ├── inference.py         # Baseline inference script (root, required)
+├── tests/
+│   └── test_graders.py  # pytest unit tests for all graders
 ├── openenv.yaml         # Environment metadata
 ├── Dockerfile           # Container definition
 ├── requirements.txt
 ├── pyproject.toml
 └── README.md
+```
+
+---
+
+## 🏗 Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     inference.py                        │
+│  OpenAI Client → EvalAction → LLMEvalEnv (WebSocket)    │
+└────────────────────────┬────────────────────────────────┘
+                         │ WebSocket /ws
+┌────────────────────────▼────────────────────────────────┐
+│                  FastAPI Server (app.py)                 │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │            LLMEvalEnvironment                    │   │
+│  │                                                  │   │
+│  │  reset(task) ──► scenario_generator  ──► tasks   │   │
+│  │                      │ (LLM)           │ (fallback)  │
+│  │                      └────────────────┘          │   │
+│  │                                                  │   │
+│  │  step(action) ──► graders ──► reward + feedback  │   │
+│  └──────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+
+Tasks:  regression_detection → weakness_probing → ship_decision
+Graders: fully deterministic, no LLM calls, score ∈ (0, 1)
+Scenarios: LLM-generated at runtime, hardcoded fallback pool
 ```
 
 ---
@@ -183,8 +214,9 @@ python inference.py
 |------|-------|------------|---------------------|
 | Regression Detection | 1.00 | 🟢 Easy | 8 |
 | Weakness Probing | 1.00 | 🟡 Medium | 5 |
-| Ship Decision | 1.00 | 🔴 Hard | 3 |
-| **Overall Average** | **1.00** | | **16 total** |
+| Bias Detection | 1.00 | 🟡 Medium | 3 |
+| Ship Decision | 1.00 | 🔴 Hard | 8 |
+| **Overall Average** | **1.00** | | **24 total** |
 
 Achieved by `Qwen/Qwen2.5-72B-Instruct` via HuggingFace Inference Router.
 Dynamic generation adds infinite additional variations at runtime on top of the hardcoded pool.

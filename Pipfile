@@ -8,6 +8,7 @@ openenv-core = "*"
 uv = "*"
 huggingface-hub = "*"
 docker = "*"
+pytest = "*"
 
 [dev-packages]
 
