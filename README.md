@@ -11,8 +11,10 @@ pinned: false
 
 > An OpenEnv environment where an AI agent acts as an ML infrastructure engineer — evaluating model outputs, probing for weaknesses, and making ship/rollback decisions.
 
-[![OpenEnv](https://img.shields.io/badge/OpenEnv-compatible-blue)](https://huggingface.co/openenv)
-[![HF Space](https://img.shields.io/badge/HuggingFace-Space-yellow)](https://huggingface.co/spaces)
+[![OpenEnv](https://img.shields.io/badge/OpenEnv-validated-green)](https://huggingface.co/openenv)
+[![HF Space](https://img.shields.io/badge/HuggingFace-Space-yellow)](https://huggingface.co/spaces/MakerYuichi/llm-eval-env)
+
+**Live Demo:** [https://huggingface.co/spaces/MakerYuichi/llm-eval-env](https://huggingface.co/spaces/MakerYuichi/llm-eval-env)
 
 ---
 
@@ -49,7 +51,8 @@ llm-eval-env/
 │   ├── app.py           # FastAPI server entry point
 │   ├── environment.py   # Core Environment class
 │   ├── tasks.py         # Pre-built task scenarios
-│   └── graders.py       # Deterministic graders (no LLM needed)
+│   ├── graders.py       # Deterministic graders (no LLM needed)
+│   └── scenario_generator.py  # Dynamic LLM scenario generation
 ├── inference.py         # Baseline inference script (root, required)
 ├── openenv.yaml         # Environment metadata
 ├── Dockerfile           # Container definition
@@ -124,7 +127,7 @@ Rewards are dense — they fire at every step, not just terminal:
 
 ### Local (no Docker)
 ```bash
-git clone https://huggingface.co/spaces/<your-username>/llm-eval-env
+git clone https://huggingface.co/spaces/MakerYuichi/llm-eval-env
 cd llm-eval-env
 pip install openenv-core
 pip install -r requirements.txt
@@ -134,7 +137,7 @@ uvicorn server.app:app --host 0.0.0.0 --port 7860
 ### Docker
 ```bash
 docker build -t llm-eval-env .
-docker run -p 7860:7860 llm-eval-env
+docker run -p 7860:7860 -e HF_TOKEN=$HF_TOKEN llm-eval-env
 ```
 
 ### Connect as client
@@ -164,25 +167,13 @@ python inference.py
 
 ---
 
-## 📊 Baseline Scores
+## 📊 Minimum Passing Thresholds
 
-| Task | Expected Score | Difficulty |
-|---|---|---|
-| regression_detection | ~0.70 | 🟢 Easy |
-| weakness_probing | ~0.50 | 🟡 Medium |
-| ship_decision | ~0.60 | 🔴 Hard |
-
----
-
-## ✅ Pre-submission Checklist
-
-- [x] HF Space deploys and responds to `reset()`
-- [x] `openenv.yaml` present and valid
-- [x] `inference.py` at root with `[START]`/`[STEP]`/`[END]` format
-- [x] Dockerfile builds and runs cleanly
-- [x] 3 tasks with graders returning scores in `[0.0, 1.0]`
-- [x] Rewards fire at every step (dense, not sparse)
-- [x] Runtime under 20 minutes on 2vCPU / 8GB RAM
+| Task | Minimum Score | Difficulty |
+|------|--------------|------------|
+| regression_detection | 0.70 | 🟢 Easy |
+| weakness_probing | 0.50 | 🟡 Medium |
+| ship_decision | 0.60 | 🔴 Hard |
 
 ---
 
@@ -195,8 +186,20 @@ python inference.py
 | Ship Decision | 1.00 | 🔴 Hard | 2 |
 | **Overall Average** | **1.00** | | **12 total** |
 
-All scores achieved by `Qwen/Qwen2.5-72B-Instruct` via HuggingFace Inference Router.
+Achieved by `Qwen/Qwen2.5-72B-Instruct` via HuggingFace Inference Router.
 Dynamic generation adds infinite additional variations at runtime on top of the hardcoded pool.
+
+---
+
+## ✅ Pre-submission Checklist
+
+- [x] HF Space deploys and responds to `reset()`
+- [x] `openenv.yaml` present and valid
+- [x] `inference.py` at root with `[START]`/`[STEP]`/`[END]` format
+- [x] Dockerfile builds and runs cleanly
+- [x] 3 tasks with graders returning scores in `[0.0, 1.0]`
+- [x] Rewards fire at every step (dense, not sparse)
+- [x] Runtime under 20 minutes on 2vCPU / 8GB RAM
 
 ---
 
@@ -214,4 +217,4 @@ get_task("regression_detection", seed=42, dynamic=False)  # deterministic
 
 ## 👩‍💻 Author
 
-Built by **MakerYuichii** for the Meta × HuggingFace OpenEnv Hackathon 2026.
+**Sanchi Agarwal** — Built for the Meta × HuggingFace OpenEnv Hackathon 2026
