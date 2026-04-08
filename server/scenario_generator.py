@@ -54,7 +54,6 @@ def _call_llm(prompt: str, max_tokens: int = 700) -> Optional[str]:
 
 
 def _with_retry(fn, retries: int = MAX_RETRIES) -> Optional[Dict[str, Any]]:
-    """Try fn up to `retries` times, return first success or None."""
     for attempt in range(retries):
         try:
             result = fn()
@@ -113,14 +112,13 @@ def _try_regression() -> Optional[Dict[str, Any]]:
     assert gt["buggy_model"] in ("model_a", "model_b")
     assert len(gt["error_keywords"]) >= 1
 
-    # Validate keywords actually appear in the buggy output
     buggy_output = data["scenario"][f"{gt['buggy_model']}_output"].lower()
     matched = [kw for kw in gt["error_keywords"] if kw.lower() in buggy_output]
     if not matched:
         raise ValueError(
             f"error_keywords {gt['error_keywords']} not found in buggy output: {buggy_output[:100]}"
         )
-    gt["error_keywords"] = matched  # keep only verified keywords
+    gt["error_keywords"] = matched
     return data
 
 
@@ -248,7 +246,6 @@ def _try_ship() -> Optional[Dict[str, Any]]:
     assert "scenario" in data and "ground_truth" in data
     assert data["ground_truth"]["correct_decision"] in ("ship", "rollback")
 
-    # Enforce correct decision based on thresholds (float tolerance avoids noise)
     report = data["scenario"]["eval_report"]
     TOLERANCE = 0.01
     should_rollback = (

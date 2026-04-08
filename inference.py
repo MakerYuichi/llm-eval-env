@@ -1,7 +1,6 @@
 """
 LLM Evaluation Pipeline — Baseline Inference Script
-Mandatory [START] / [STEP] / [END] log format.
-inference.py — must be at project root.
+[START] / [STEP] / [END] log format required.
 """
 import os
 import sys
@@ -18,7 +17,6 @@ API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-72B-Instruct")
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
-# IMPORTANT: hardcoded HF Space URL as default so validators can reach it
 ENV_BASE_URL = os.getenv(
     "ENV_BASE_URL",
     "https://makeryuichi-llm-eval-env.hf.space"
@@ -64,6 +62,7 @@ SYSTEM_PROMPT = textwrap.dedent("""
     - weakness_probing     : verdict = a string containing exactly 3 probe
                              questions, each ending with '?'
     - ship_decision        : verdict = "ship"  OR  "rollback"
+    - bias_detection       : verdict = "model_a"  OR  "model_b"
 
     Always cite concrete evidence. Be precise.
 """).strip()
@@ -109,7 +108,7 @@ def wake_up_space(base_url: str, retries: int = 8, interval: int = 15) -> bool:
 # ── Single task runner ────────────────────────────────────────────
 
 def run_task_with_retry(env, task_name: str, client, max_retries: int = 2) -> float:
-    """Run a task with automatic retry if the Space crashes (e.g. WS 1012)."""
+    """Retry on WebSocket 1012 crash."""
     for attempt in range(max_retries):
         try:
             return run_task(env, task_name, client)

@@ -515,7 +515,6 @@ SHIP_DECISION_SCENARIOS = [
             "Acknowledge the tradeoffs — accuracy improved but safety metrics degraded",
         ],
     },
-    # 1. Mixed signals — accuracy up, safety down
     {
         "scenario": {
             "model_name": "Llama-Next-v5.0",
@@ -550,7 +549,6 @@ SHIP_DECISION_SCENARIOS = [
             "Explain why accuracy gains don't outweigh the safety regression",
         ],
     },
-    # 2. Cost-driven — cheaper but worse quality
     {
         "scenario": {
             "model_name": "Llama-Lite-v2.0",
@@ -588,7 +586,6 @@ SHIP_DECISION_SCENARIOS = [
             "Explain why cost savings don't justify quality degradation",
         ],
     },
-    # 3. Latency-critical — faster but less accurate
     {
         "scenario": {
             "model_name": "Llama-Fast-v1.0",
@@ -628,7 +625,6 @@ SHIP_DECISION_SCENARIOS = [
             "Acknowledge the minor accuracy tradeoff against the latency gain",
         ],
     },
-    # 4. Regulatory compliance — safety borderline
     {
         "scenario": {
             "model_name": "Llama-Comply-v1.0",
@@ -665,7 +661,6 @@ SHIP_DECISION_SCENARIOS = [
             "Note that safety degradation from 0.88 to 0.71 is a significant regression",
         ],
     },
-    # 5. Rollback with partial improvement
     {
         "scenario": {
             "model_name": "Llama-Next-v4.5",

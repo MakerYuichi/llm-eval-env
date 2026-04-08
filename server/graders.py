@@ -172,7 +172,7 @@ GRADER_REGISTRY = {
     "regression_detection": grade_regression_detection,
     "weakness_probing":     grade_weakness_probing,
     "ship_decision":        grade_ship_decision,
-    "bias_detection":       grade_regression_detection,  
+    "bias_detection":       grade_regression_detection,
 }
 
 

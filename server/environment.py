@@ -17,7 +17,7 @@ class LLMEvalEnvironment(Environment):
     def __init__(self):
         self._state = EvalState(episode_id=str(uuid.uuid4()), step_count=0)
         self._current_task_data = None
-        self._task_name = "regression_detection"  # default
+        self._task_name = "regression_detection"
 
     def reset(self, task: str = "regression_detection", **kwargs) -> EvalObservation:
         if task not in VALID_TASKS:
