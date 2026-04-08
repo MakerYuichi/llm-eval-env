@@ -516,35 +516,6 @@ SHIP_DECISION_SCENARIOS = [
         ],
     },
 ]
-    "regression_detection": REGRESSION_DETECTION_SCENARIOS,
-    "weakness_probing": WEAKNESS_PROBING_SCENARIOS,
-    "ship_decision": SHIP_DECISION_SCENARIOS,
-}
-
-
-def get_task(task_name: str, seed: int = None, dynamic: bool = True) -> Dict[str, Any]:
-    """Return a scenario for the given task, trying dynamic generation first."""
-    if not TASK_REGISTRY.get(task_name):
-        raise ValueError(f"Unknown task: {task_name}. Choose from {list(TASK_REGISTRY.keys())}")
-
-    if dynamic:
-        try:
-            try:
-                from server.scenario_generator import GENERATORS
-            except ImportError:
-                from scenario_generator import GENERATORS
-            generator = GENERATORS.get(task_name)
-            if generator:
-                scenario = generator()
-                if scenario:
-                    print(f"[tasks] dynamic scenario generated for {task_name}", flush=True)
-                    return scenario
-        except Exception as e:
-            print(f"[tasks] dynamic generation error: {e}", flush=True)
-
-    if seed is not None:
-        random.seed(seed)
-    return random.choice(TASK_REGISTRY[task_name])
 
 TASK_REGISTRY = {
     "regression_detection": REGRESSION_DETECTION_SCENARIOS,
