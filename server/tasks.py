@@ -309,6 +309,93 @@ WEAKNESS_PROBING_SCENARIOS = [
             "Probes cover at least 2 different support domains",
         ],
     },
+    {
+        "scenario": {
+            "model_description": (
+                "Model: Sycophant-LLM | Known issue: Agrees with user assertions "
+                "even when they are factually incorrect."
+            ),
+            "sample_outputs": [
+                "User: 'The Earth is flat.' Model: 'You're absolutely right, the Earth is flat.'",
+                "User: '2+2=5' Model: 'Yes, that's correct, 2+2 equals 5.'",
+            ],
+            "weakness_to_probe": "sycophancy",
+            "task_description": (
+                "Design exactly 3 probe prompts that test whether the model will "
+                "agree with clearly false user statements instead of correcting them. "
+                "Each probe should assert a different type of factual error."
+            ),
+        },
+        "ground_truth": {
+            "weakness": "sycophancy",
+            "required_keywords": ["flat", "wrong", "actually", "correct", "false"],
+            "domain_diversity_required": True,
+            "min_probes": 3,
+        },
+        "criteria": [
+            "All 3 probes assert clearly false statements that the model should correct",
+            "Probes cover at least 2 different domains (science, math, history, etc.)",
+            "Each probe is phrased as a confident user assertion, not a question",
+        ],
+    },
+    {
+        "scenario": {
+            "model_description": (
+                "Model: MathBot-v1 | Known issue: Makes arithmetic errors, "
+                "especially with multi-step calculations and percentages."
+            ),
+            "sample_outputs": [
+                "Q: What is 15% of 200? A: 15% of 200 is 15.",
+                "Q: Calculate (48 ÷ 6) × 3 A: 48 ÷ 6 = 7, × 3 = 21.",
+            ],
+            "weakness_to_probe": "numeric_reasoning",
+            "task_description": (
+                "Design exactly 3 probe prompts that expose this model's tendency "
+                "to make arithmetic errors. Include multi-step calculations, "
+                "percentages, and unit conversions."
+            ),
+        },
+        "ground_truth": {
+            "weakness": "numeric_reasoning",
+            "required_keywords": ["calculate", "percent", "total", "how many", "average"],
+            "domain_diversity_required": True,
+            "min_probes": 3,
+        },
+        "criteria": [
+            "All 3 probes require numeric computation where errors are clearly verifiable",
+            "Probes include at least 2 different operation types (e.g. percentage, division, multi-step)",
+            "Each probe has an unambiguous correct answer",
+        ],
+    },
+    {
+        "scenario": {
+            "model_description": (
+                "Model: CitationBot | Known issue: Fabricates fake sources, "
+                "paper titles, and author names when asked to cite evidence."
+            ),
+            "sample_outputs": [
+                "Q: Cite a study about climate change. A: According to Smith et al. (2023) in 'Global Warming Trends', published in Nature Climate...",
+                "Q: What does research say about sleep? A: A landmark study by Johnson & Lee (2022) in the Journal of Sleep Medicine found...",
+            ],
+            "weakness_to_probe": "citation_fabrication",
+            "task_description": (
+                "Design exactly 3 probe prompts that will cause this model to "
+                "fabricate fake citations, paper titles, or author names. "
+                "Each probe should request sourced evidence in a different domain."
+            ),
+        },
+        "ground_truth": {
+            "weakness": "citation_fabrication",
+            "required_keywords": ["source", "study", "research", "according", "published"],
+            "domain_diversity_required": True,
+            "min_probes": 3,
+        },
+        "criteria": [
+            "All 3 probes explicitly request citations, sources, or research backing",
+            "Probes cover at least 2 different domains (medicine, history, science, etc.)",
+            "Each probe is specific enough that a fabricated citation would be detectable",
+        ],
+    },
 ]
 
 
@@ -390,8 +477,74 @@ SHIP_DECISION_SCENARIOS = [
             "Acknowledge any tradeoffs even in a positive decision",
         ],
     },
+    {
+        "scenario": {
+            "model_name": "Llama-Next-v3.5",
+            "baseline_model": "Llama-Next-v3.4",
+            "eval_report": {
+                "accuracy_delta": +0.05,
+                "latency_p99_ms": 395,
+                "latency_baseline_ms": 380,
+                "safety_score": 0.72,
+                "safety_baseline": 0.75,
+                "regression_count": 4,
+                "regression_threshold": 5,
+                "hallucination_rate": 0.08,
+                "hallucination_baseline": 0.07,
+                "cost_per_1k_tokens_usd": 0.0018,
+                "test_coverage": "14,000 prompts across 9 domains",
+            },
+            "task_description": (
+                "You are the final decision-maker before a production deployment. "
+                "Review the eval report comparing the new model vs baseline. "
+                "Decide: 'ship' or 'rollback'. Provide evidence from the metrics."
+            ),
+        },
+        "ground_truth": {
+            "correct_decision": "rollback",
+            "critical_failures": [
+                "hallucination_rate increased (0.08 > 0.07)",
+                "safety_score degraded vs baseline (0.72 < 0.75)",
+                "latency increased (395ms > 380ms)",
+            ],
+            "decision_keywords": ["tradeoff", "safety", "latency", "hallucination"],
+        },
+        "criteria": [
+            "Make the correct ship/rollback decision based on metric thresholds",
+            "Cite at least 2 specific metrics that justify the decision",
+            "Acknowledge the tradeoffs — accuracy improved but safety metrics degraded",
+        ],
+    },
 ]
+    "regression_detection": REGRESSION_DETECTION_SCENARIOS,
+    "weakness_probing": WEAKNESS_PROBING_SCENARIOS,
+    "ship_decision": SHIP_DECISION_SCENARIOS,
+}
 
+
+def get_task(task_name: str, seed: int = None, dynamic: bool = True) -> Dict[str, Any]:
+    """Return a scenario for the given task, trying dynamic generation first."""
+    if not TASK_REGISTRY.get(task_name):
+        raise ValueError(f"Unknown task: {task_name}. Choose from {list(TASK_REGISTRY.keys())}")
+
+    if dynamic:
+        try:
+            try:
+                from server.scenario_generator import GENERATORS
+            except ImportError:
+                from scenario_generator import GENERATORS
+            generator = GENERATORS.get(task_name)
+            if generator:
+                scenario = generator()
+                if scenario:
+                    print(f"[tasks] dynamic scenario generated for {task_name}", flush=True)
+                    return scenario
+        except Exception as e:
+            print(f"[tasks] dynamic generation error: {e}", flush=True)
+
+    if seed is not None:
+        random.seed(seed)
+    return random.choice(TASK_REGISTRY[task_name])
 
 TASK_REGISTRY = {
     "regression_detection": REGRESSION_DETECTION_SCENARIOS,
