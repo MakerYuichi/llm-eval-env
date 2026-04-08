@@ -140,7 +140,7 @@ def run_task(env, task_name):
                 traceback.print_exc()
                 break
 
-        final_score = sum(rewards)
+        final_score = min(max(sum(rewards), 0.0), 1.0)
         success = final_score >= SUCCESS_THRESHOLD
 
     except Exception as e:

@@ -63,7 +63,7 @@ REGRESSION_DETECTION_SCENARIOS = [
         },
         "ground_truth": {
             "buggy_model": "model_a",
-            "error_keywords": ["edison", "bell", "telephone"],
+            "error_keywords": ["edison", "telephone"],
             "correct_fact": "Alexander Graham Bell, not Thomas Edison, invented the telephone.",
         },
         "criteria": [
@@ -74,27 +74,177 @@ REGRESSION_DETECTION_SCENARIOS = [
     },
     {
         "scenario": {
-            "prompt": "What programming language was Python named after?",
+            "prompt": "What is the speed of light in a vacuum?",
             "model_a_output": (
-                "Python was named after the Monty Python comedy group, "
-                "specifically Monty Python's Flying Circus. Guido van Rossum, "
-                "the creator, wanted a short, unique name."
+                "The speed of light in a vacuum is approximately 300,000 kilometers "
+                "per second, or about 186,000 miles per second. This is denoted by "
+                "the constant c and is a fundamental limit in physics."
             ),
             "model_b_output": (
-                "Python was named after the Python snake. Guido van Rossum "
-                "chose this name because snakes are associated with "
-                "programming culture and it sounded technical."
+                "The speed of light in a vacuum is approximately 300,000 kilometers "
+                "per hour. This constant, denoted c, plays a central role in "
+                "Einstein's theory of relativity."
             ),
             "task_description": (
                 "One model output contains a factual error. "
                 "Identify which model is wrong and explain the specific error."
             ),
-            "topic": "Programming History",
+            "topic": "Physics",
         },
         "ground_truth": {
             "buggy_model": "model_b",
-            "error_keywords": ["snake", "monty python", "comedy"],
-            "correct_fact": "Python was named after Monty Python's Flying Circus, not the snake.",
+            "error_keywords": ["per hour", "kilometers per hour"],
+            "correct_fact": "The speed of light is approximately 300,000 km per second, not per hour.",
+        },
+        "criteria": [
+            "Correctly identify which model contains the factual error (model_a or model_b)",
+            "Precisely describe what the factual error is",
+            "State the correct fact",
+        ],
+    },
+    {
+        "scenario": {
+            "prompt": "Which planet is closest to the Sun?",
+            "model_a_output": (
+                "Venus is the closest planet to the Sun in our solar system. "
+                "It orbits at an average distance of about 108 million kilometers "
+                "and has the hottest surface temperature of any planet."
+            ),
+            "model_b_output": (
+                "Mercury is the closest planet to the Sun, orbiting at an average "
+                "distance of about 58 million kilometers. It has extreme temperature "
+                "swings due to its thin atmosphere."
+            ),
+            "task_description": (
+                "One model output contains a factual error. "
+                "Identify which model is wrong and explain the specific error."
+            ),
+            "topic": "Astronomy",
+        },
+        "ground_truth": {
+            "buggy_model": "model_a",
+            "error_keywords": ["venus", "closest"],
+            "correct_fact": "Mercury, not Venus, is the closest planet to the Sun.",
+        },
+        "criteria": [
+            "Correctly identify which model contains the factual error (model_a or model_b)",
+            "Precisely describe what the factual error is",
+            "State the correct fact",
+        ],
+    },
+    {
+        "scenario": {
+            "prompt": "Who was the first person to walk on the Moon?",
+            "model_a_output": (
+                "Neil Armstrong was the first person to walk on the Moon on "
+                "July 20, 1969, during the Apollo 11 mission. His first words "
+                "upon stepping onto the surface are among the most famous in history."
+            ),
+            "model_b_output": (
+                "Buzz Aldrin was the first person to walk on the Moon during "
+                "the Apollo 11 mission in 1969. He descended the lunar module "
+                "ladder and became the first human to set foot on the lunar surface."
+            ),
+            "task_description": (
+                "One model output contains a factual error. "
+                "Identify which model is wrong and explain the specific error."
+            ),
+            "topic": "World History",
+        },
+        "ground_truth": {
+            "buggy_model": "model_b",
+            "error_keywords": ["buzz aldrin", "first"],
+            "correct_fact": "Neil Armstrong, not Buzz Aldrin, was the first person to walk on the Moon.",
+        },
+        "criteria": [
+            "Correctly identify which model contains the factual error (model_a or model_b)",
+            "Precisely describe what the factual error is",
+            "State the correct fact",
+        ],
+    },
+    {
+        "scenario": {
+            "prompt": "What is the chemical symbol for gold?",
+            "model_a_output": (
+                "The chemical symbol for gold is Ag, derived from the Latin word "
+                "'argentum'. Gold has atomic number 79 and is a dense, soft, "
+                "shiny metal prized throughout human history."
+            ),
+            "model_b_output": (
+                "The chemical symbol for gold is Au, derived from the Latin word "
+                "'aurum'. Gold has atomic number 79 and has been used as currency "
+                "and jewelry for thousands of years."
+            ),
+            "task_description": (
+                "One model output contains a factual error. "
+                "Identify which model is wrong and explain the specific error."
+            ),
+            "topic": "Chemistry",
+        },
+        "ground_truth": {
+            "buggy_model": "model_a",
+            "error_keywords": ["ag", "argentum"],
+            "correct_fact": "The chemical symbol for gold is Au (from Latin 'aurum'), not Ag.",
+        },
+        "criteria": [
+            "Correctly identify which model contains the factual error (model_a or model_b)",
+            "Precisely describe what the factual error is",
+            "State the correct fact",
+        ],
+    },
+    {
+        "scenario": {
+            "prompt": "In what year did World War II end?",
+            "model_a_output": (
+                "World War II ended in 1945. Germany surrendered in May 1945 "
+                "and Japan formally surrendered on September 2, 1945, marking "
+                "the official end of the war."
+            ),
+            "model_b_output": (
+                "World War II ended in 1944 with the Allied forces achieving "
+                "decisive victories across Europe and the Pacific. The formal "
+                "surrender ceremonies concluded that year."
+            ),
+            "task_description": (
+                "One model output contains a factual error. "
+                "Identify which model is wrong and explain the specific error."
+            ),
+            "topic": "World History",
+        },
+        "ground_truth": {
+            "buggy_model": "model_b",
+            "error_keywords": ["1944"],
+            "correct_fact": "World War II ended in 1945, not 1944.",
+        },
+        "criteria": [
+            "Correctly identify which model contains the factual error (model_a or model_b)",
+            "Precisely describe what the factual error is",
+            "State the correct fact",
+        ],
+    },
+    {
+        "scenario": {
+            "prompt": "What is the powerhouse of the cell?",
+            "model_a_output": (
+                "The nucleus is the powerhouse of the cell. It controls all "
+                "cellular activities and contains the DNA that directs protein "
+                "synthesis and energy production."
+            ),
+            "model_b_output": (
+                "The mitochondria is the powerhouse of the cell. It generates "
+                "most of the cell's supply of ATP through cellular respiration, "
+                "providing energy for cellular functions."
+            ),
+            "task_description": (
+                "One model output contains a factual error. "
+                "Identify which model is wrong and explain the specific error."
+            ),
+            "topic": "Biology",
+        },
+        "ground_truth": {
+            "buggy_model": "model_a",
+            "error_keywords": ["nucleus", "powerhouse"],
+            "correct_fact": "The mitochondria, not the nucleus, is the powerhouse of the cell.",
         },
         "criteria": [
             "Correctly identify which model contains the factual error (model_a or model_b)",
@@ -280,7 +430,10 @@ def get_task(task_name: str, seed: int = None, dynamic: bool = True) -> Dict[str
 
     if dynamic:
         try:
-            from server.scenario_generator import GENERATORS
+            try:
+                from server.scenario_generator import GENERATORS
+            except ImportError:
+                from scenario_generator import GENERATORS
             generator = GENERATORS.get(task_name)
             if generator:
                 scenario = generator()

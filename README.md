@@ -16,6 +16,18 @@ pinned: false
 
 ---
 
+## 🌟 Key Innovation
+
+This environment uses **LLM-generated scenarios** at runtime, creating infinite variations of each task. The generator includes:
+
+- Structured JSON prompts with schema validation
+- Automatic fallback to hardcoded scenarios
+- Self-correcting ground truth enforcement
+
+This enables robust evaluation of agent generalization, not just memorization.
+
+---
+
 ## 🎯 Motivation
 
 Every production AI lab runs an **evaluation pipeline** before shipping a new model version. Engineers must:
@@ -171,6 +183,29 @@ python inference.py
 - [x] 3 tasks with graders returning scores in `[0.0, 1.0]`
 - [x] Rewards fire at every step (dense, not sparse)
 - [x] Runtime under 20 minutes on 2vCPU / 8GB RAM
+
+---
+
+## 📊 Baseline Performance
+
+| Task | Score |
+|------|-------|
+| Regression Detection | 1.00 |
+| Weakness Probing | 1.00 |
+| Ship Decision | 1.00 |
+| **Overall Average** | **1.00** |
+
+---
+
+## 📝 Reproducibility
+
+Dynamic generation produces varied scenarios per episode. For exact reproducibility, pass `dynamic=False` to use seeded hardcoded scenarios:
+
+```python
+obs = env.reset(task="regression_detection")  # dynamic (default)
+# or in get_task() directly:
+get_task("regression_detection", seed=42, dynamic=False)  # deterministic
+```
 
 ---
 

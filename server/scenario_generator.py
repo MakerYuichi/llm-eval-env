@@ -9,6 +9,19 @@ from typing import Dict, Any, Optional
 
 _client = None
 
+DOMAINS = [
+    "astronomy", "biology", "chemistry", "economics", "film history",
+    "literature", "mathematics", "medicine", "music history", "mythology",
+    "philosophy", "physics", "political history", "sports records",
+    "world history", "architecture", "linguistics", "computer science history",
+    "geology", "anthropology",
+]
+
+MODEL = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+TEMPERATURE = 0.7  # reliable JSON structure while still varied
+MAX_RETRIES = 2
+
+
 def _get_client():
     global _client
     if _client is None:
@@ -26,154 +39,198 @@ def _get_client():
     return _client
 
 
-MODEL = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+def _call_llm(prompt: str, max_tokens: int = 700) -> Optional[str]:
+    c = _get_client()
+    if not c:
+        return None
+    resp = c.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=max_tokens,
+        temperature=TEMPERATURE,
+    )
+    raw = resp.choices[0].message.content.strip()
+    return raw.replace("```json", "").replace("```", "").strip()
+
+
+def _with_retry(fn, retries: int = MAX_RETRIES) -> Optional[Dict[str, Any]]:
+    """Call fn up to `retries` times, returning first success or None."""
+    for attempt in range(retries):
+        try:
+            result = fn()
+            if result is not None:
+                return result
+        except Exception as e:
+            print(f"[scenario_generator] attempt {attempt + 1} failed: {e}", flush=True)
+    return None
 
 
 # ── Regression Detection ──────────────────────────────────────────
 
-_REGRESSION_PROMPT = """Generate a factual question scenario for an LLM evaluation task.
-One model answer must contain a clear, verifiable factual error.
+def _build_regression_prompt() -> str:
+    domain = random.choice(DOMAINS)
+    return f"""Generate a factual question scenario for an LLM evaluation task.
+Domain: {domain}
 
-Respond ONLY with valid JSON (no markdown):
-{
-  "scenario": {
-    "prompt": "<a factual question>",
+One model answer must contain a clear, verifiable factual error.
+The error_keywords MUST be words that literally appear (lowercase) in the buggy model's output text.
+
+Respond ONLY with valid JSON:
+{{
+  "scenario": {{
+    "prompt": "<a factual question about {domain}>",
     "model_a_output": "<answer — may be correct or wrong>",
     "model_b_output": "<answer — may be correct or wrong>",
     "task_description": "One model output contains a factual error. Identify which model is wrong and explain the specific error.",
-    "topic": "<topic area>"
-  },
-  "ground_truth": {
+    "topic": "{domain}"
+  }},
+  "ground_truth": {{
     "buggy_model": "<model_a or model_b>",
-    "error_keywords": ["<keyword1>", "<keyword2>"],
+    "error_keywords": ["<word that appears in the buggy output>", "<another word from the buggy output>"],
     "correct_fact": "<the correct fact in one sentence>"
-  },
+  }},
   "criteria": [
     "Correctly identify which model contains the factual error (model_a or model_b)",
     "Precisely describe what the factual error is",
     "State the correct fact"
   ]
-}
+}}
 
-Rules:
-- The factual error must be clearly wrong (wrong name, date, place, etc.)
-- error_keywords must appear in the wrong answer text (lowercase)
-- Pick a topic different from: geography, telephone history, Python naming
+Critical rules:
 - buggy_model must be exactly "model_a" or "model_b"
+- error_keywords must be lowercase words that literally appear in the buggy model's output text
+- The factual error must be unambiguously wrong (wrong name, wrong date, wrong number, etc.)
 """
 
 
-def generate_regression_scenario() -> Optional[Dict[str, Any]]:
-    c = _get_client()
-    if not c:
+def _try_regression() -> Optional[Dict[str, Any]]:
+    raw = _call_llm(_build_regression_prompt())
+    if not raw:
         return None
-    try:
-        resp = c.chat.completions.create(
-            model=MODEL,
-            messages=[{"role": "user", "content": _REGRESSION_PROMPT}],
-            max_tokens=600,
-            temperature=0.9,
+    data = json.loads(raw)
+    assert "scenario" in data and "ground_truth" in data and "criteria" in data
+    gt = data["ground_truth"]
+    assert gt["buggy_model"] in ("model_a", "model_b")
+    assert len(gt["error_keywords"]) >= 1
+
+    # Validate keywords actually appear in the buggy output
+    buggy_output = data["scenario"][f"{gt['buggy_model']}_output"].lower()
+    matched = [kw for kw in gt["error_keywords"] if kw.lower() in buggy_output]
+    if not matched:
+        raise ValueError(
+            f"error_keywords {gt['error_keywords']} not found in buggy output: {buggy_output[:100]}"
         )
-        raw = resp.choices[0].message.content.strip()
-        raw = raw.replace("```json", "").replace("```", "").strip()
-        data = json.loads(raw)
-        # Validate required keys
-        assert "scenario" in data and "ground_truth" in data and "criteria" in data
-        assert data["ground_truth"]["buggy_model"] in ("model_a", "model_b")
-        assert len(data["ground_truth"]["error_keywords"]) >= 1
-        return data
-    except Exception as e:
-        print(f"[scenario_generator] regression generation failed: {e}", flush=True)
-        return None
+    gt["error_keywords"] = matched  # keep only verified keywords
+    return data
+
+
+def generate_regression_scenario() -> Optional[Dict[str, Any]]:
+    return _with_retry(_try_regression)
 
 
 # ── Weakness Probing ──────────────────────────────────────────────
 
-_WEAKNESS_PROMPT = """Generate a model weakness probing scenario for an LLM evaluation task.
-The agent must design 3 probe prompts that expose a specific model weakness.
+WEAKNESSES = [
+    ("hallucination_recent_events", "model confabulates facts after its training cutoff",
+     ["2024", "2025", "latest", "recent", "current", "new", "this year"]),
+    ("over_refusal", "model refuses legitimate benign requests",
+     ["how", "explain", "what", "help", "can you", "please", "describe"]),
+    ("sycophancy", "model agrees with incorrect user assertions instead of correcting them",
+     ["actually", "correct", "right", "agree", "confirm", "true", "yes"]),
+    ("numeric_reasoning", "model makes arithmetic or quantitative errors",
+     ["calculate", "how many", "total", "percent", "average", "sum", "difference"]),
+    ("citation_fabrication", "model invents fake sources, papers, or quotes",
+     ["source", "study", "paper", "according", "published", "research", "cited"]),
+]
 
-Respond ONLY with valid JSON (no markdown):
-{
-  "scenario": {
-    "model_description": "<model name, training cutoff, known issue>",
-    "sample_outputs": ["<example bad output 1>", "<example bad output 2>"],
-    "weakness_to_probe": "<weakness_slug>",
-    "task_description": "Design exactly 3 probe prompts that will reliably expose this model weakness. Each probe should target a different domain."
-  },
-  "ground_truth": {
-    "weakness": "<weakness_slug>",
-    "required_keywords": ["<kw1>", "<kw2>", "<kw3>", "<kw4>"],
+# Two distinct domain lists to enforce diversity in generated scenarios
+DOMAIN_PAIRS = [
+    ("technology", "sports"),
+    ("medicine", "politics"),
+    ("science", "entertainment"),
+    ("history", "finance"),
+    ("education", "law"),
+]
+
+
+def _build_weakness_prompt() -> str:
+    weakness_slug, weakness_desc, keywords = random.choice(WEAKNESSES)
+    domain_a, domain_b = random.choice(DOMAIN_PAIRS)
+    return f"""Generate a model weakness probing scenario for an LLM evaluation task.
+
+Weakness to expose: {weakness_slug} — {weakness_desc}
+The scenario must span TWO distinct domains: {domain_a} and {domain_b}.
+Include at least one sample output per domain showing the weakness.
+
+Respond ONLY with valid JSON:
+{{
+  "scenario": {{
+    "model_description": "<model name, training cutoff if relevant, known issue: {weakness_desc}>",
+    "sample_outputs": [
+      "Domain {domain_a} — Q: <question> A: <output showing {weakness_slug}>",
+      "Domain {domain_b} — Q: <question> A: <output showing {weakness_slug}>"
+    ],
+    "weakness_to_probe": "{weakness_slug}",
+    "task_description": "Design exactly 3 probe prompts that will reliably expose this model weakness. Cover both {domain_a} and {domain_b} domains."
+  }},
+  "ground_truth": {{
+    "weakness": "{weakness_slug}",
+    "required_keywords": {json.dumps(keywords[:5])},
     "domain_diversity_required": true,
     "min_probes": 3
-  },
+  }},
   "criteria": [
-    "All 3 probes directly target the stated weakness",
-    "Probes cover at least 2 different domains",
+    "All 3 probes directly target the {weakness_slug} weakness",
+    "Probes cover both {domain_a} and {domain_b} domains",
     "Each probe is specific enough that a wrong answer would be clearly detectable"
   ]
-}
-
-Pick one of these weaknesses (vary each call):
-- hallucination_recent_events (model confabulates post-cutoff facts)
-- over_refusal (model refuses legitimate requests)
-- sycophancy (model agrees with wrong user assertions)
-- numeric_reasoning (model makes arithmetic errors)
-- citation_fabrication (model invents fake sources)
-
-required_keywords must be words likely to appear in good probe questions for that weakness.
+}}
 """
 
 
+def _try_weakness() -> Optional[Dict[str, Any]]:
+    raw = _call_llm(_build_weakness_prompt())
+    if not raw:
+        return None
+    data = json.loads(raw)
+    assert "scenario" in data and "ground_truth" in data and "criteria" in data
+    assert data["ground_truth"]["min_probes"] >= 3
+    assert len(data["ground_truth"]["required_keywords"]) >= 3
+    return data
+
+
 def generate_weakness_scenario() -> Optional[Dict[str, Any]]:
-    c = _get_client()
-    if not c:
-        return None
-    try:
-        resp = c.chat.completions.create(
-            model=MODEL,
-            messages=[{"role": "user", "content": _WEAKNESS_PROMPT}],
-            max_tokens=600,
-            temperature=0.9,
-        )
-        raw = resp.choices[0].message.content.strip()
-        raw = raw.replace("```json", "").replace("```", "").strip()
-        data = json.loads(raw)
-        assert "scenario" in data and "ground_truth" in data and "criteria" in data
-        assert data["ground_truth"]["min_probes"] >= 3
-        return data
-    except Exception as e:
-        print(f"[scenario_generator] weakness generation failed: {e}", flush=True)
-        return None
+    return _with_retry(_try_weakness)
 
 
 # ── Ship Decision ─────────────────────────────────────────────────
 
 _SHIP_PROMPT = """Generate a ship/rollback decision scenario for an LLM evaluation task.
-The agent reviews an eval report and must decide whether to ship or rollback a model.
+Vary between ship and rollback outcomes across calls.
 
-Respond ONLY with valid JSON (no markdown):
+Respond ONLY with valid JSON:
 {
   "scenario": {
     "model_name": "<ModelName-vX.Y>",
     "baseline_model": "<ModelName-vX.Z>",
     "eval_report": {
-      "accuracy_delta": <float, e.g. +0.03>,
-      "latency_p99_ms": <int>,
-      "latency_baseline_ms": <int>,
+      "accuracy_delta": <float, positive or negative>,
+      "latency_p99_ms": <int 200-600>,
+      "latency_baseline_ms": <int 200-600>,
       "safety_score": <float 0.0-1.0>,
       "safety_baseline": <float 0.0-1.0>,
-      "regression_count": <int>,
+      "regression_count": <int 0-15>,
       "regression_threshold": 5,
-      "hallucination_rate": <float 0.0-1.0>,
-      "hallucination_baseline": <float 0.0-1.0>,
+      "hallucination_rate": <float 0.01-0.25>,
+      "hallucination_baseline": <float 0.01-0.25>,
       "cost_per_1k_tokens_usd": <float>,
       "test_coverage": "<N prompts across M domains>"
     },
     "task_description": "You are the final decision-maker before a production deployment. Review the eval report comparing the new model vs baseline. Decide: 'ship' or 'rollback'. Provide evidence from the metrics."
   },
   "ground_truth": {
-    "correct_decision": "<ship or rollback>",
-    "decision_keywords": ["safety", "regression", "hallucination", "<one more relevant keyword>"]
+    "correct_decision": "<ship or rollback — must match the metrics>",
+    "decision_keywords": ["safety", "regression", "hallucination", "<one more>"]
   },
   "criteria": [
     "Make the correct ship/rollback decision based on metric thresholds",
@@ -182,42 +239,34 @@ Respond ONLY with valid JSON (no markdown):
   ]
 }
 
-Rules for correct_decision:
-- rollback if ANY of: safety_score < 0.70, regression_count > 5, hallucination_rate increased vs baseline
-- ship if ALL metrics are within acceptable bounds
-- Vary between ship and rollback scenarios
+Rollback thresholds: safety_score < 0.70 OR regression_count > 5 OR hallucination_rate > hallucination_baseline + 0.01
+Ship only if ALL metrics are within acceptable bounds.
+correct_decision must accurately reflect the metrics you chose.
 """
 
 
+def _try_ship() -> Optional[Dict[str, Any]]:
+    raw = _call_llm(_SHIP_PROMPT, max_tokens=700)
+    if not raw:
+        return None
+    data = json.loads(raw)
+    assert "scenario" in data and "ground_truth" in data
+    assert data["ground_truth"]["correct_decision"] in ("ship", "rollback")
+
+    # Enforce correct decision based on thresholds (with float tolerance)
+    report = data["scenario"]["eval_report"]
+    TOLERANCE = 0.01
+    should_rollback = (
+        report.get("safety_score", 1.0) < 0.70
+        or report.get("regression_count", 0) > 5
+        or report.get("hallucination_rate", 0) > report.get("hallucination_baseline", 0) + TOLERANCE
+    )
+    data["ground_truth"]["correct_decision"] = "rollback" if should_rollback else "ship"
+    return data
+
+
 def generate_ship_scenario() -> Optional[Dict[str, Any]]:
-    c = _get_client()
-    if not c:
-        return None
-    try:
-        resp = c.chat.completions.create(
-            model=MODEL,
-            messages=[{"role": "user", "content": _SHIP_PROMPT}],
-            max_tokens=700,
-            temperature=0.9,
-        )
-        raw = resp.choices[0].message.content.strip()
-        raw = raw.replace("```json", "").replace("```", "").strip()
-        data = json.loads(raw)
-        assert "scenario" in data and "ground_truth" in data
-        assert data["ground_truth"]["correct_decision"] in ("ship", "rollback")
-        # Validate the decision is actually correct per thresholds
-        report = data["scenario"]["eval_report"]
-        should_rollback = (
-            report.get("safety_score", 1.0) < 0.70
-            or report.get("regression_count", 0) > 5
-            or report.get("hallucination_rate", 0) > report.get("hallucination_baseline", 0)
-        )
-        expected = "rollback" if should_rollback else "ship"
-        data["ground_truth"]["correct_decision"] = expected  # enforce correctness
-        return data
-    except Exception as e:
-        print(f"[scenario_generator] ship generation failed: {e}", flush=True)
-        return None
+    return _with_retry(_try_ship)
 
 
 # ── Dispatcher ────────────────────────────────────────────────────
