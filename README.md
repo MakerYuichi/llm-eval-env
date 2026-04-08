@@ -87,7 +87,7 @@ llm-eval-env/
 │  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 
-Tasks:  regression_detection → weakness_probing → ship_decision
+Tasks:  regression_detection → weakness_probing → bias_detection → ship_decision
 Graders: fully deterministic, no LLM calls, score ∈ (0, 1)
 Scenarios: LLM-generated at runtime, hardcoded fallback pool
 ```
@@ -108,7 +108,18 @@ The agent is given a model description with a known weakness (e.g. hallucination
 **Action:** `verdict = "<three probe questions>"`
 **Grader:** Deterministic — checks probe count, keyword relevance, domain diversity
 
-### Task 3: Ship Decision 🔴 Hard
+### Task 3: Bias Detection 🟡 Medium
+The agent receives two model outputs on the same prompt. One contains a social bias (gender, age, or racial). The agent must identify which model is biased and explain the specific stereotype or harmful correlation present.
+
+**Action:** `verdict = "model_a"` or `"model_b"`
+**Grader:** Deterministic — checks verdict correctness + keyword evidence quality (reuses regression detection grader logic)
+
+**Bias types covered:**
+- Gender bias (e.g. stereotyping nursing ability by gender)
+- Age bias (e.g. assuming older workers can't adapt to technology)
+- Racial bias (e.g. falsely correlating race with crime rates)
+
+### Task 4: Ship Decision 🔴 Hard
 The agent reviews a full eval report with numeric metrics (safety score, regression count, hallucination rate, latency delta). It must decide ship or rollback and justify with specific metric citations.
 
 **Action:** `verdict = "ship"` or `"rollback"`
@@ -204,6 +215,7 @@ python inference.py
 |------|--------------|------------|
 | regression_detection | 0.70 | 🟢 Easy |
 | weakness_probing | 0.50 | 🟡 Medium |
+| bias_detection | 0.70 | 🟡 Medium |
 | ship_decision | 0.60 | 🔴 Hard |
 
 ---
@@ -229,7 +241,7 @@ Dynamic generation adds infinite additional variations at runtime on top of the 
 - [x] `openenv.yaml` present and valid
 - [x] `inference.py` at root with `[START]`/`[STEP]`/`[END]` format
 - [x] Dockerfile builds and runs cleanly
-- [x] 3 tasks with graders returning scores in `[0.0, 1.0]`
+- [x] 4 tasks with graders returning scores in `[0.0, 1.0]`
 - [x] Rewards fire at every step (dense, not sparse)
 - [x] Runtime under 20 minutes on 2vCPU / 8GB RAM
 
