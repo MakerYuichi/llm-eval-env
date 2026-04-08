@@ -187,7 +187,7 @@ def run_task(env, task_name: str, client) -> float:
                 log_step(step=step, action=action_str, reward=0.0, done=True, error=str(e)[:80])
                 break
 
-        final_score = min(max(sum(rewards), 0.0), 1.0)
+        final_score = min(max(sum(rewards), 0.001), 0.999)
         success     = final_score >= SUCCESS_THRESHOLD
 
     except Exception as e:

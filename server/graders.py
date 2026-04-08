@@ -174,4 +174,7 @@ def grade_action(task_name: str, task_data: Dict, action: EvalAction, step: int)
     grader = GRADER_REGISTRY.get(task_name)
     if not grader:
         raise ValueError(f"No grader found for task: {task_name}")
-    return grader(task_data, action, step)
+    result = grader(task_data, action, step)
+    result["reward"] = max(0.001, min(result["reward"], 0.999))
+    result["score"]  = max(0.001, min(result["score"],  0.999))
+    return result
